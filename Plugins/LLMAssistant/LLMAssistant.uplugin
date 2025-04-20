@@ -1,0 +1,26 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "LLM Assistant",
+	"Description": "Integrates Large Language Models into the Unreal Engine editor",
+	"Category": "LLM",
+	"CreatedBy": "Your Name",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "LLMAssistant",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	],
+	"EditorPlugin": true,
+	"PrecompileTargets": [ "Editor" ]
+}
