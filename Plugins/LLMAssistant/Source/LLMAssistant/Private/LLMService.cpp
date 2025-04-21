@@ -13,7 +13,7 @@ FLLMService::~FLLMService()
     // Nothing to clean up
 }
 
-void FLLMService::SendQuery(const FString& Query)
+void FLLMService::SendQuery(const FString &Query)
 {
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = HttpModule->CreateRequest();
 
@@ -34,7 +34,7 @@ void FLLMService::SendQuery(const FString& Query)
     Request->ProcessRequest();
 }
 
-TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FLLMService::CreateOpenAIRequest(const FString& Query)
+TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FLLMService::CreateOpenAIRequest(const FString &Query)
 {
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = HttpModule->CreateRequest();
     Request->SetURL(TEXT("https://api.openai.com/v1/chat/completions"));
@@ -74,7 +74,7 @@ TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FLLMService::CreateOpenAIRequest(c
     return Request;
 }
 
-TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FLLMService::CreateAnthropicRequest(const FString& Query)
+TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FLLMService::CreateAnthropicRequest(const FString &Query)
 {
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = HttpModule->CreateRequest();
     Request->SetURL(TEXT("https://api.anthropic.com/v1/messages"));
@@ -88,16 +88,32 @@ TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FLLMService::CreateAnthropicReques
     JsonObject->SetStringField(TEXT("model"), Settings->ModelName);
     JsonObject->SetNumberField(TEXT("max_tokens"), Settings->MaxTokens);
 
-    JsonObject->SetStringField(TEXT("system"), TEXT("You are a helpful assistant for Unreal Engine development. Provide concise and accurate information."));
-
+    // Create messages array
     TArray<TSharedPtr<FJsonValue>> MessagesArray;
+
+    // System message is now a separate field in the root object
+    JsonObject->SetStringField(TEXT("system"), TEXT("You are a helpful assistant for Unreal Engine development. Provide concise and accurate information."));
 
     // User message
     TSharedPtr<FJsonObject> UserMsgObj = MakeShareable(new FJsonObject);
     UserMsgObj->SetStringField(TEXT("role"), TEXT("user"));
-    UserMsgObj->SetStringField(TEXT("content"), Query);
+
+    // Create content array for the message
+    TArray<TSharedPtr<FJsonValue>> ContentArray;
+
+    // Add text content
+    TSharedPtr<FJsonObject> TextContent = MakeShareable(new FJsonObject);
+    TextContent->SetStringField(TEXT("type"), TEXT("text"));
+    TextContent->SetStringField(TEXT("text"), Query);
+    ContentArray.Add(MakeShareable(new FJsonValueObject(TextContent)));
+
+    // Set content array to the message
+    UserMsgObj->SetArrayField(TEXT("content"), ContentArray);
+
+    // Add user message to messages array
     MessagesArray.Add(MakeShareable(new FJsonValueObject(UserMsgObj)));
 
+    // Set messages array to the request
     JsonObject->SetArrayField(TEXT("messages"), MessagesArray);
 
     // Convert to string
@@ -110,7 +126,7 @@ TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FLLMService::CreateAnthropicReques
     return Request;
 }
 
-TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FLLMService::CreateCustomRequest(const FString& Query)
+TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FLLMService::CreateCustomRequest(const FString &Query)
 {
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = HttpModule->CreateRequest();
     Request->SetURL(Settings->CustomEndpointURL);
@@ -205,16 +221,16 @@ void FLLMService::OnResponseReceived_Internal(FHttpRequestPtr Request, FHttpResp
     OnResponseReceived.ExecuteIfBound(ParsedResponse);
 }
 
-FString FLLMService::ParseOpenAIResponse(const TSharedPtr<FJsonObject>& JsonObject)
+FString FLLMService::ParseOpenAIResponse(const TSharedPtr<FJsonObject> &JsonObject)
 {
     // Extract text from OpenAI response format
-    const TArray<TSharedPtr<FJsonValue>>* ChoicesArray;
+    const TArray<TSharedPtr<FJsonValue>> *ChoicesArray;
     if (JsonObject->TryGetArrayField(TEXT("choices"), ChoicesArray) && ChoicesArray->Num() > 0)
     {
-        const TSharedPtr<FJsonObject>* Choice;
+        const TSharedPtr<FJsonObject> *Choice;
         if ((*ChoicesArray)[0]->TryGetObject(Choice))
         {
-            const TSharedPtr<FJsonObject>* MessageObj;
+            const TSharedPtr<FJsonObject> *MessageObj;
             if (Choice->Get()->TryGetObjectField(TEXT("message"), MessageObj))
             {
                 FString Content;
@@ -229,23 +245,37 @@ FString FLLMService::ParseOpenAIResponse(const TSharedPtr<FJsonObject>& JsonObje
     return TEXT("");
 }
 
-FString FLLMService::ParseAnthropicResponse(const TSharedPtr<FJsonObject>& JsonObject)
+FString FLLMService::ParseAnthropicResponse(const TSharedPtr<FJsonObject> &JsonObject)
 {
-    // Extract text from Anthropic response format
-    const TSharedPtr<FJsonObject>* ContentObj;
-    if (JsonObject->TryGetObjectField(TEXT("content"), ContentObj))
+    // First check if response has valid content array
+    const TArray<TSharedPtr<FJsonValue>> *ContentArray;
+    if (JsonObject->TryGetArrayField(TEXT("content"), ContentArray) && ContentArray->Num() > 0)
     {
-        FString Text;
-        if (ContentObj->Get()->TryGetStringField(TEXT("text"), Text))
+        const TSharedPtr<FJsonObject> *ContentItem;
+        if ((*ContentArray)[0]->TryGetObject(ContentItem))
         {
-            return Text;
+            FString Type;
+            FString Text;
+            if (ContentItem->Get()->TryGetStringField(TEXT("type"), Type) &&
+                Type == TEXT("text") &&
+                ContentItem->Get()->TryGetStringField(TEXT("text"), Text))
+            {
+                return Text;
+            }
         }
+    }
+
+    // For older Anthropic API versions
+    FString Completion;
+    if (JsonObject->TryGetStringField(TEXT("completion"), Completion))
+    {
+        return Completion;
     }
 
     return TEXT("");
 }
 
-FString FLLMService::ParseCustomResponse(const TSharedPtr<FJsonObject>& JsonObject)
+FString FLLMService::ParseCustomResponse(const TSharedPtr<FJsonObject> &JsonObject)
 {
     // This should be customized based on the API being used
     // Falling back to OpenAI format for now
