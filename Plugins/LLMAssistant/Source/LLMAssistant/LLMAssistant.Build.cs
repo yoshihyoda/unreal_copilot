@@ -30,7 +30,19 @@ public class LLMAssistant : ModuleRules
                 "EditorStyle",
                 "ApplicationCore",
                 "DesktopPlatform",
-                "Settings"
+                "Settings",
+                "AssetRegistry",
+                "AssetTools",
+                "BlueprintGraph",
+                "Kismet",
+                "KismetCompiler",
+                "PropertyEditor",
+                "SlateCore",
+                "SceneOutliner",
+                "GraphEditor",
+                "EditorWidgets",
+                "EditorSubsystem",
+                "AssetDefinition"
             });
         }
     }
